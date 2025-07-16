@@ -517,7 +517,7 @@ async function main() {
   });
 
   //
-  await app.listen(process.env.PORT ?? 5001);
+  await app.listen(process.env.PORT ?? 3001);
   console.log(`velix engine bot is running on: ${await app.getUrl()}`);
 }
 
