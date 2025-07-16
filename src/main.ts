@@ -58,7 +58,10 @@ const userUsage: Record<
   }
 > = {};
 
-function checkAndIncrementUsage(chatId: number, type: 'textToImage' | 'imageToText' | 'generateCode'): boolean {
+function checkAndIncrementUsage(
+  chatId: number,
+  type: 'textToImage' | 'imageToText' | 'generateCode',
+): boolean {
   const today = new Date().toISOString().split('T')[0];
 
   if (!userUsage[chatId] || userUsage[chatId].date !== today) {
@@ -148,8 +151,11 @@ async function handleOnTextToImage(
 
 async function handleOnImageToText(msg: TelegramBot.Message) {
   if (!checkAndIncrementUsage(msg.chat.id, 'imageToText')) {
-  return bot.sendMessage(msg.chat.id, '⚠️ You have reached your daily limit for VelixVision. Try again tomorrow.');
-}
+    return bot.sendMessage(
+      msg.chat.id,
+      '⚠️ You have reached your daily limit for VelixVision. Try again tomorrow.',
+    );
+  }
   let waittingMessageId: number = null;
   const fileId =
     msg.photo?.[msg.photo.length - 1]?.file_id || msg.document?.file_id;
@@ -216,8 +222,11 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
 //
 async function handleOnGenerateCode(msg: TelegramBot.Message) {
   if (!checkAndIncrementUsage(msg.chat.id, 'generateCode')) {
-  return bot.sendMessage(msg.chat.id, '⚠️ You have reached your daily limit for CodeMorph. Try again tomorrow.');
-}
+    return bot.sendMessage(
+      msg.chat.id,
+      '⚠️ You have reached your daily limit for CodeMorph. Try again tomorrow.',
+    );
+  }
   //
   let fileId: string;
 
@@ -391,9 +400,9 @@ async function main() {
   //
   bot.on('message', async (message) => {
     //
-    if (message.text === '/velix') {
+    if (message.text === '/start') {
       const path =
-        'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752598235/welcome-velix-ai_y6wajd.mp4';
+        'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752665787/new-intro-velix_mtkj8m.mp4';
 
       await bot.sendVideo(message.chat.id, path, {
         parse_mode: 'Markdown',
@@ -406,10 +415,32 @@ async function main() {
       return;
     }
 
+    if (message.text === '/tutorial') {
+      const tutorialMsg = `📘 *Velix AI Tutorial*\n\nUse the following commands:\n
+🖼️ */vg your prompt* - Generate an image from a prompt\n👁️ */vs (with image)* - Analyze an image in detail\n💻 */vcm (with UI image)* - Convert design to code\n\nType a command to begin.`;
+      bot.sendMessage(message.chat.id, tutorialMsg, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (message.text === '/premium') {
+      const premiumMsg = `🚀 *Premium Access - Coming Soon!*\n\nPremium members will enjoy higher usage limits, early access to new features, and priority support. Stay tuned!`;
+      bot.sendMessage(message.chat.id, premiumMsg, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (message.text === '/points') {
+      const pointsMsg = `🔢 *Points Limit Info*\n\nEach user can use:\n- 🖼️ VelixGen: *3 times/day*\n- 👁️ VelixVision: *3 times/day*\n- 💻 CodeMorph: *3 times/day*\n\nUpgrade to premium for more usage!`;
+      bot.sendMessage(message.chat.id, pointsMsg, { parse_mode: 'Markdown' });
+      return;
+    }
+
     if (message.text?.startsWith('/vg')) {
       if (!checkAndIncrementUsage(message.chat.id, 'textToImage')) {
-  return bot.sendMessage(message.chat.id, '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.');
-}
+        return bot.sendMessage(
+          message.chat.id,
+          '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
+        );
+      }
       const prompt = message.text.slice(3).trim();
 
       if (!prompt) {
@@ -475,7 +506,10 @@ async function main() {
       message.photo || message.document?.mime_type?.startsWith('image');
 
     const isKnownCommand =
-      message.text?.startsWith('/velix') ||
+      message.text?.startsWith('/start') ||
+      message.text?.startsWith('/tutorial') ||
+      message.text?.startsWith('/premium') ||
+      message.text?.startsWith('/points') ||
       message.text?.startsWith('/vg') ||
       message.text?.startsWith('/vs') ||
       message.text?.startsWith('/vcm') ||
@@ -487,7 +521,7 @@ async function main() {
       bot.sendMessage(
         message.chat.id,
         `⚠️*Velix AI didn't recognize that input⚠️\n\nPlease try using one of the available features in the bot.*`,
-        { parse_mode: 'Markdown'}
+        { parse_mode: 'Markdown' },
       );
     }
   });
