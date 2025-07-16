@@ -435,55 +435,61 @@ async function main() {
     }
 
     if (message.text?.startsWith('/vg')) {
-      if (!checkAndIncrementUsage(message.chat.id, 'textToImage')) {
-        return bot.sendMessage(
-          message.chat.id,
-          '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
-        );
-      }
-      const prompt = message.text.slice(3).trim();
-
-      if (!prompt) {
-        bot.sendMessage(
-          message.chat.id,
-          '*Please add your prompt after /vg*\n\nExample: `/vg astronaut riding a horse`',
-          { parse_mode: 'Markdown' },
-        );
-      } else {
-        let waittingMessageId: number = null;
-        bot
-          .sendMessage(
-            message.chat.id,
-            `⏳*Please wait and avoid any input*⏳\n\nVelixGen is generating your image...`,
-            { parse_mode: 'Markdown' },
-          )
-          .then((m) => (waittingMessageId = m.message_id));
-
-        try {
-          //
-          const image = await handleOnTextToImage(prompt);
-          // bot.sendPhoto(message.chat.id, image);
-          await bot.sendPhoto(message.chat.id, image, {
-            caption: `🖼️ *VelixGen Result*`,
-            parse_mode: 'Markdown',
-          });
-          if (waittingMessageId && image) {
-            bot.deleteMessage(message.chat.id, waittingMessageId);
-          }
-        } catch (error) {
-          console.log({ t: error });
-          if (waittingMessageId) {
-            bot.deleteMessage(message.chat.id, waittingMessageId);
-          }
-          bot.sendMessage(
-            message.chat.id,
-            `⚠️ *Velix Engine rejected this prompt due to safety restrictions, Please try a different prompt.*`,
-            { parse_mode: 'Markdown' },
-          );
-        }
-      }
-
+      bot.sendMessage(
+        message.chat.id,
+        `🖼️ *VelixGen is currently locked and will be released soon.*\n\nStay tuned for updates!`,
+        { parse_mode: 'Markdown' },
+      );
       return;
+      // if (!checkAndIncrementUsage(message.chat.id, 'textToImage')) {
+      //   return bot.sendMessage(
+      //     message.chat.id,
+      //     '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
+      //   );
+      // }
+      // const prompt = message.text.slice(3).trim();
+
+      // if (!prompt) {
+      //   bot.sendMessage(
+      //     message.chat.id,
+      //     '*Please add your prompt after /vg*\n\nExample: `/vg astronaut riding a horse`',
+      //     { parse_mode: 'Markdown' },
+      //   );
+      // } else {
+      //   let waittingMessageId: number = null;
+      //   bot
+      //     .sendMessage(
+      //       message.chat.id,
+      //       `⏳*Please wait and avoid any input*⏳\n\nVelixGen is generating your image...`,
+      //       { parse_mode: 'Markdown' },
+      //     )
+      //     .then((m) => (waittingMessageId = m.message_id));
+
+      //   try {
+      //     //
+      //     const image = await handleOnTextToImage(prompt);
+      //     // bot.sendPhoto(message.chat.id, image);
+      //     await bot.sendPhoto(message.chat.id, image, {
+      //       caption: `🖼️ *VelixGen Result*`,
+      //       parse_mode: 'Markdown',
+      //     });
+      //     if (waittingMessageId && image) {
+      //       bot.deleteMessage(message.chat.id, waittingMessageId);
+      //     }
+      //   } catch (error) {
+      //     console.log({ t: error });
+      //     if (waittingMessageId) {
+      //       bot.deleteMessage(message.chat.id, waittingMessageId);
+      //     }
+      //     bot.sendMessage(
+      //       message.chat.id,
+      //       `⚠️ *Velix Engine rejected this prompt due to safety restrictions, Please try a different prompt.*`,
+      //       { parse_mode: 'Markdown' },
+      //     );
+      //   }
+      // }
+
+      // return;
     }
 
     if (
@@ -498,8 +504,14 @@ async function main() {
       (message.caption && message.caption.startsWith('/vcm')) ||
       (message.text && message.text.startsWith('/vcm'))
     ) {
-      handleOnGenerateCode(message);
+      bot.sendMessage(
+        message.chat.id,
+        `💻 *CodeMorph is currently locked and will be released soon.*\n\nStay tuned!`,
+        { parse_mode: 'Markdown' },
+      );
       return;
+      // handleOnGenerateCode(message);
+      // return;
     }
 
     const isImageOnly =
@@ -532,9 +544,16 @@ async function main() {
 
     switch (data.command) {
       case CallbackInfo.VELIXG:
-        bot.sendMessage(query.message.chat.id, textInfo.commandVelixGen, {
-          parse_mode: 'Markdown',
-        });
+        // bot.sendMessage(query.message.chat.id, textInfo.commandVelixGen, {
+        //   parse_mode: 'Markdown',
+        // });
+        bot.sendMessage(
+          query.message.chat.id,
+          `🖼️ *VelixGen is currently locked and will be released soon.*\n\nStay tuned for updates!`,
+          {
+            parse_mode: 'Markdown',
+          },
+        );
         break;
 
       case CallbackInfo.VELIXV:
@@ -543,9 +562,14 @@ async function main() {
         });
         break;
       case CallbackInfo.CODEM:
-        bot.sendMessage(query.message.chat.id, textInfo.commandVelixCodeMorph, {
-          parse_mode: 'Markdown',
-        });
+        // bot.sendMessage(query.message.chat.id, textInfo.commandVelixCodeMorph, {
+        //   parse_mode: 'Markdown',
+        // });
+        bot.sendMessage(
+          query.message.chat.id,
+          `💻 *CodeMorph is currently locked and will be released soon.*\n\nStay tuned!`,
+          { parse_mode: 'Markdown' },
+        );
         break;
     }
   });
