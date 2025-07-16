@@ -16,9 +16,6 @@ COPY . .
 # Creates a "dist" folder with the production build
 RUN npm run build
 
-# Debug log – lihat isi folder dist
-RUN ls -la /app/dist
-
 # Expose the port on which the app will run
 EXPOSE 3001
 
