@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { takeScreenshotFromHtml } from 'utils/browse-and-screenshot';
+import { takeScreenshotFromHtml } from 'src/utils/browse-and-screenshot';
 //
 import axios from 'axios';
 import OpenAI from 'openai';
@@ -16,7 +16,7 @@ import {
   keyboardMarkup,
   textInfo,
   textInfoWelcome,
-} from 'utils/keyboard-markup';
+} from 'src/utils/keyboard-markup';
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
