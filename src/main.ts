@@ -155,6 +155,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     return bot.sendMessage(
       msg.chat.id,
       '⚠️ You have reached your daily limit for VelixVision. Try again tomorrow.',
+      { parse_mode: 'Markdown' }
     );
   }
   let waittingMessageId: number = null;
@@ -216,6 +217,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     bot.sendMessage(
       msg.chat.id,
       '❌ Velix Engine failed to analyze this image. Try again with a clearer one.',
+      { parse_mode: 'Markdown' }
     );
   }
 }
@@ -226,6 +228,7 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
     return bot.sendMessage(
       msg.chat.id,
       '⚠️ You have reached your daily limit for CodeMorph. Try again tomorrow.',
+      { parse_mode: 'Markdown' }
     );
   }
   //
@@ -446,6 +449,7 @@ async function main() {
         return bot.sendMessage(
           message.chat.id,
           '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
+          { parse_mode: 'Markdown' }
         );
       }
       const prompt = message.text.slice(3).trim();
