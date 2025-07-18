@@ -155,7 +155,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     return bot.sendMessage(
       msg.chat.id,
       '⚠️ You have reached your daily limit for VelixVision. Try again tomorrow.',
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
   }
   let waittingMessageId: number = null;
@@ -217,7 +217,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     bot.sendMessage(
       msg.chat.id,
       '❌ Velix Engine failed to analyze this image. Try again with a clearer one.',
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
   }
 }
@@ -228,7 +228,7 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
     return bot.sendMessage(
       msg.chat.id,
       '⚠️ You have reached your daily limit for CodeMorph. Try again tomorrow.',
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown' },
     );
   }
   //
@@ -409,8 +409,8 @@ async function main() {
         'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752665787/new-intro-velix_mtkj8m.mp4';
 
       await bot.sendVideo(message.chat.id, path, {
-        parse_mode: 'Markdown',
         caption: textInfoWelcome(message.chat.first_name),
+        parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: keyboardMarkup.start,
         },
@@ -449,7 +449,7 @@ async function main() {
         return bot.sendMessage(
           message.chat.id,
           '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'Markdown' },
         );
       }
       const prompt = message.text.slice(3).trim();

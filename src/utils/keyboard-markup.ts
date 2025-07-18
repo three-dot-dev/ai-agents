@@ -18,8 +18,9 @@ Instructions: Upload your image or design screenshot and type "/vcm" on image ca
 `
 
 export function textInfoWelcome(username: string) {
+  const safeUsername = username.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
   return `
-    Hello ${username} 👋
+    Hello ${safeUsername} 👋
 *Welcome to Velix AI 🌟* - The Visual Intelligence Layer for Builders.
 
 Here’s what I can do for you:
