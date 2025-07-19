@@ -1,0 +1,40 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // dari Supabase
+}
+
+model User {
+  id            String       @id @default(uuid())
+  telegramId    Int          @unique
+  isPremium     Boolean      @default(false)
+  plan          String?
+  dailyLimit    Int          @default(3) // default = 3x/hari
+  createdAt     DateTime     @default(now())
+  usageLogs     UsageLog[]
+  payments   PaymentTransaction[]
+}
+
+model UsageLog {
+  id         String   @id @default(uuid())
+  telegramId Int
+  feature    String
+  usedAt     DateTime @default(now())
+
+  user       User     @relation(fields: [telegramId], references: [telegramId], onDelete: Cascade)
+}
+
+model PaymentTransaction {
+  id         String   @id @default(cuid())
+  txHash     String   @unique
+  telegramId Int
+  amount     Float
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [telegramId], references: [telegramId], onDelete: Cascade)
+}

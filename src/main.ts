@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { takeScreenshotFromHtml } from 'src/utils/browse-and-screenshot';
+import { createClient } from '@supabase/supabase-js';
 //
 import axios from 'axios';
 import OpenAI from 'openai';
@@ -17,19 +18,36 @@ import {
   textInfo,
   textInfoWelcome,
 } from 'src/utils/keyboard-markup';
+import {
+  decodeTopicToAddress,
+  getTodayRangeUTC,
+  parseUsdtAmount,
+} from './utils';
 
 //
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const WS_BACKEND_URL = process.env.WS_BACKEND_URL;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
+// const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 //
 const connectedWs: Record<number, { client: websocket.client }> = {};
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+//
+const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2';
+const VELIX_ADDRESS =
+  '0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb'.toLowerCase();
+const PREMIUM_AMOUNT = 12.5;
+const USDT_DECIMALS = 6;
+
+//create cache
+const userCache = new Map<number, any>();
 
 //
 type GenerateCodePayload = {
@@ -47,39 +65,221 @@ type GenerateCodePayload = {
   accessCode: null;
 };
 
-const usageLimit = 3;
+async function getTransactionDetailsFromMoralis(txHash: string) {
+  try {
+    const response = await axios.get(
+      `${MORALIS_API_URL}/transaction/${txHash}`,
+      {
+        headers: {
+          'X-API-Key': MORALIS_API_KEY!,
+        },
+      },
+    );
 
-const userUsage: Record<
-  number,
-  {
-    date: string;
-    textToImage: number;
-    imageToText: number;
-    generateCode: number;
-  }
-> = {};
+    const tx = response.data;
 
-function checkAndIncrementUsage(
-  chatId: number,
-  type: 'textToImage' | 'imageToText' | 'generateCode',
-): boolean {
-  const today = new Date().toISOString().split('T')[0];
+    const log = tx.logs?.[0];
 
-  if (!userUsage[chatId] || userUsage[chatId].date !== today) {
-    userUsage[chatId] = {
-      date: today,
-      textToImage: 0,
-      imageToText: 0,
-      generateCode: 0,
+    if (!log || !log.topic2 || !log.data) {
+      console.warn('Missing log, topic2, or data');
+      return null;
+    }
+
+    //
+    const from_address = '0x' + log.topic1.slice(-40);
+    const to_address = '0x' + log.topic2.slice(-40);
+    const data_usd = BigInt(log.data);
+    const value_usd = (Number(data_usd) / 1e6).toFixed(6);
+
+    //
+    return {
+      from_address,
+      to_address,
+      value_usd: value_usd ?? '0',
+      receipt_status: tx.receipt_status?.toString() ?? '0',
     };
+  } catch (err) {
+    console.error(
+      'Error fetching Moralis tx:',
+      err.response?.data || err.message,
+    );
+    return null;
+  }
+}
+
+async function handlePayCommand(message: TelegramBot.Message, txInput: string) {
+  const chatId = message.chat.id;
+  const telegramId = message.from?.id;
+
+  let waitingMsgVerifyId: number = null;
+
+  await bot
+    .sendMessage(
+      chatId,
+      `
+    ⏳ Verifying your payment...
+
+Please wait while we confirm your transaction on the blockchain.  
+This may take a few seconds.`,
+      { parse_mode: 'Markdown' },
+    )
+    .then((m) => (waitingMsgVerifyId = m.message_id));
+
+  if (!txInput || !txInput.includes('0x')) {
+    if (waitingMsgVerifyId) {
+      bot.deleteMessage(chatId, waitingMsgVerifyId);
+    }
+    return bot.sendMessage(
+      chatId,
+      `❌ Please provide a valid Etherscan transaction URL or hash.\n\nExample:\n/pay https://etherscan.io/tx/<your-tx-hash>`,
+    );
   }
 
-  if (userUsage[chatId][type] >= usageLimit) {
-    return false;
-  }
+  try {
+    // Ambil txHash dari URL atau langsung dari input
+    const txHashMatch = txInput.match(/0x[a-fA-F0-9]{64}/);
+    if (!txHashMatch) {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `❌ Could not extract a valid transaction hash.`,
+      );
+    }
 
-  userUsage[chatId][type]++;
-  return true;
+    const txHash = txHashMatch[0].toLowerCase();
+
+    // Cek apakah txHash sudah pernah dipakai
+    const { data: existingTx } = await supabase
+      .from('PaymentTransaction')
+      .select('id')
+      .eq('txHash', txHash)
+      .single();
+
+    if (existingTx) {
+      console.log({ waitingMsgVerifyId })
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `⚠️ This transaction has already been used for premium upgrade.`,
+      );
+    }
+
+    // Ambil detail transaksi dari Moralis
+    const tx = await getTransactionDetailsFromMoralis(txHash);
+
+    if (!tx) {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `❌ Could not fetch transaction details. Please try again later.`,
+      );
+    }
+
+    const { to_address, value_usd, from_address, receipt_status } = tx;
+
+    if (receipt_status !== '1') {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `❌ This transaction failed. Only successful transactions are accepted.`,
+      );
+    }
+
+    if (to_address.toLowerCase() !== VELIX_ADDRESS) {
+
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `❌ This transaction was not sent to Velix AI's official address.\n\n✅ Address:\n${VELIX_ADDRESS}`,
+      );
+    }
+
+    if (parseFloat(value_usd) < PREMIUM_AMOUNT) {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      return bot.sendMessage(
+        chatId,
+        `❌ Payment insufficient.\nYou must send at least **$${PREMIUM_AMOUNT} USDT**.`,
+      );
+    }
+
+    // Simpan transaksi ke database
+    const { error: insertErr } = await supabase
+      .from('PaymentTransaction')
+      .insert([
+        {
+          txHash,
+          telegramId,
+          amount: parseFloat(value_usd),
+        },
+      ]);
+
+    if (insertErr) {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      console.error('Insert TX Error:', insertErr);
+      return bot.sendMessage(
+        chatId,
+        `❌ Failed to record payment. Please try again or contact support.`,
+      );
+    }
+
+    // Update user ke premium (dailyLimit = 10)
+    const { error: updateErr, data: updatedUser } = await supabase
+      .from('User')
+      .update({
+        isPremium: true,
+        plan: 'premium',
+        dailyLimit: 10,
+      })
+      .eq('telegramId', telegramId)
+      .select()
+      .single();
+
+    if (updateErr) {
+      if (waitingMsgVerifyId) {
+        bot.deleteMessage(chatId, waitingMsgVerifyId);
+      }
+      console.error('Update user error:', updateErr);
+      return bot.sendMessage(
+        chatId,
+        `❌ Payment verified but failed to upgrade your account. Please contact support.`,
+      );
+    }
+
+    // Update userCache
+    userCache.set(telegramId, updatedUser);
+
+    if (waitingMsgVerifyId) {
+      bot.deleteMessage(chatId, waitingMsgVerifyId);
+    }
+
+    return bot.sendMessage(
+      chatId,
+      `✅ Payment verified!\n\n🎉 Your Velix AI account is now Premium.\nYou can now use features up to *10x per day* for the next 7 days.\n\nThanks for supporting us! 🚀`,
+      {
+        parse_mode: 'Markdown',
+      },
+    );
+  } catch (err) {
+    console.error('handlePayCommand error:', err);
+    return bot.sendMessage(
+      chatId,
+      `❌ Something went wrong while verifying your transaction. Please try again later.`,
+    );
+  }
 }
 
 //
@@ -125,6 +325,64 @@ function ensureDirectoryExists(directory) {
     fs.mkdirSync(directory, { recursive: true });
   }
 }
+
+async function checkAndLogUsage(
+  telegramId: number,
+  feature: string,
+): Promise<boolean> {
+  try {
+    const user = userCache.get(telegramId);
+    if (!user) return false;
+
+    const { start, end } = getTodayRangeUTC();
+
+    // Hitung penggunaan hari ini
+    const { data: usageToday, error: usageError } = await supabase
+      .from('UsageLog')
+      .select('*')
+      .eq('telegramId', telegramId)
+      .eq('feature', feature)
+      .gte('usedAt', start)
+      .lte('usedAt', end);
+
+    if (usageError) {
+      console.error(
+        `❌ Error checking usage for ${telegramId} - ${feature}:`,
+        usageError.message,
+      );
+      return false;
+    }
+
+    console.log({ usageToday });
+    const usageCount = usageToday?.length ?? 0;
+    console.log({ usageCount });
+
+    if (usageCount >= user.dailyLimit) {
+      return false;
+    }
+
+    // Simpan log baru
+    const { error: insertError } = await supabase.from('UsageLog').insert([
+      {
+        telegramId,
+        feature,
+      },
+    ]);
+
+    if (insertError) {
+      console.error(
+        `❌ Error logging usage for ${telegramId} - ${feature}:`,
+        insertError.message,
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error({ log: error });
+    throw error;
+  }
+}
 //
 async function handleOnTextToImage(
   prompt: string,
@@ -151,19 +409,22 @@ async function handleOnTextToImage(
 }
 
 async function handleOnImageToText(msg: TelegramBot.Message) {
-  if (!checkAndIncrementUsage(msg.chat.id, 'imageToText')) {
-    return bot.sendMessage(
-      msg.chat.id,
-      '⚠️ You have reached your daily limit for VelixVision. Try again tomorrow.',
-      { parse_mode: 'Markdown' },
-    );
-  }
   let waittingMessageId: number = null;
   const fileId =
     msg.photo?.[msg.photo.length - 1]?.file_id || msg.document?.file_id;
 
   if (!fileId) {
     bot.sendMessage(msg.chat.id, '👁️ Please send an image to analyze');
+    return;
+  }
+
+  const isAllowed = await checkAndLogUsage(msg.from.id, 'vs');
+  if (!isAllowed) {
+    bot.sendMessage(
+      msg.chat.id,
+      `⚠️ *You have reached the daily limit for this feature.*\n\nUpgrade to premium to get more usage.`,
+      { parse_mode: 'Markdown' },
+    );
     return;
   }
 
@@ -224,13 +485,6 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
 
 //
 async function handleOnGenerateCode(msg: TelegramBot.Message) {
-  if (!checkAndIncrementUsage(msg.chat.id, 'generateCode')) {
-    return bot.sendMessage(
-      msg.chat.id,
-      '⚠️ You have reached your daily limit for CodeMorph. Try again tomorrow.',
-      { parse_mode: 'Markdown' },
-    );
-  }
   //
   let fileId: string;
 
@@ -328,6 +582,17 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
           response.type === 'status' &&
           response.value === 'Generating code...'
         ) {
+          //
+          const isAllowed = await checkAndLogUsage(message.from.id, 'vcm');
+          if (!isAllowed) {
+            bot.sendMessage(
+              message.chat.id,
+              `⚠️ *You have reached the daily limit for this feature.*\n\nUpgrade to premium to get more usage.`,
+              { parse_mode: 'Markdown' },
+            );
+            return;
+          }
+
           const sentMsg = await bot.sendMessage(
             msg.chat.id,
             'We got your request. CodeMorph is generating your code,\n\n⏳*please wait and avoid making any input during this process.*⏳',
@@ -404,6 +669,46 @@ async function main() {
   //
   bot.on('message', async (message) => {
     //
+    const telegramId = message.from.id;
+    const dailyLimit = userCache.get(telegramId)?.dailyLimit ?? 3;
+    const plan = userCache.get(telegramId)?.plan ?? 'free';
+    // cek user
+    if (!userCache.has(telegramId)) {
+      try {
+        const { data: existingUser, error } = await supabase
+          .from('User')
+          .select('*')
+          .eq('telegramId', telegramId)
+          .single();
+
+        if (!existingUser) {
+          const { data, error: insertError } = await supabase
+            .from('User')
+            .insert([
+              {
+                telegramId,
+                isPremium: false,
+                plan: 'free',
+                dailyLimit: 3,
+              },
+            ])
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Failed to insert new user:', insertError);
+          } else {
+            userCache.set(telegramId, data); // save new user to cache
+          }
+        } else {
+          userCache.set(telegramId, existingUser); // save old user to cache
+        }
+      } catch (error) {
+        console.error('User fetch/insert error:', error);
+      }
+    }
+
+    //
     if (message.text === '/start') {
       const path =
         'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752665787/new-intro-velix_mtkj8m.mp4';
@@ -427,31 +732,65 @@ async function main() {
     }
 
     if (message.text === '/premium') {
-      const premiumMsg = `🚀 *Premium Access - Coming Soon!*\n\nPremium members will enjoy higher usage limits, early access to new features, and priority support. Stay tuned!`;
-      bot.sendMessage(message.chat.id, premiumMsg, { parse_mode: 'Markdown' });
+      const freeUser =
+        '🚀 *Premium Access*\n\n' +
+        'Unlock full power with Premium for *$12.5/week* and get:\n\n' +
+        '🔹 *Higher daily limits* (10x per feature/day)\n' +
+        '🔹 *Priority support*\n' +
+        '🔹 *Exclusive early features*\n\n' +
+        '💳 *To upgrade:*\n' +
+        'Send $12.5 USDT (ERC-20) to the address below:\n\n' +
+        '`0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb`\n\n' +
+        '*Then submit your payment proof with:*\n' +
+        '`/pay https://etherscan.io/tx/<your-tx-hash>`\n\n' +
+        '⚠️ *Only use the official Velix AI address above.*\n' +
+        '*We are not responsible for payments sent elsewhere.*\n\n' +
+        'Thank you for supporting Velix AI! 🙌';
+      const premiumUser =
+        '🎉 *You are a Premium Member!*\n\n' +
+        '✅ You currently enjoy:\n' +
+        '🔹 10x daily usage per feature\n' +
+        '🔹 Priority support\n' +
+        '🔹 Access to exclusive updates\n\n' +
+        '*Your Premium access is valid for 1 week.*\n\n' +
+        'To extend your Premium status after expiry, simply make another payment of *$12.5 USDT* (ERC-20) and use /pay.\n\n' +
+        'Thanks for being a part of Velix AI Premium! 🚀';
+
+      const premiumMessage = plan === 'free' ? freeUser : premiumUser;
+
+      bot.sendMessage(message.chat.id, premiumMessage, {
+        parse_mode: 'Markdown',
+      });
       return;
     }
 
     if (message.text === '/points') {
-      const pointsMsg = `🔢 *Points Limit Info*\n\nEach user can use:\n- 🖼️ VelixGen: *3 times/day*\n- 👁️ VelixVision: *3 times/day*\n- 💻 CodeMorph: *3 times/day*\n\nUpgrade to premium for more usage!`;
+      const freeUserPointsMessage =
+        '🔢 *Usage Limits - Free Member*\n\n' +
+        'As a free user, you can use each feature *up to 3 times/day*:\n\n' +
+        '🖼️ VelixGen: *3x per day*\n' +
+        '👁️ VelixVision: *3x per day*\n' +
+        '💻 CodeMorph: *3x per day*\n\n' +
+        'Want more?\n' +
+        'Upgrade to *Premium* for higher limits and weekly access.\n' +
+        'Type /premium to learn more.';
+      const premiumUserPointsMessage =
+        '🌟 *Usage Limits - Premium Member*\n\n' +
+        'You currently enjoy upgraded limits:\n\n' +
+        '🖼️ VelixGen: *10x per day*\n' +
+        '👁️ VelixVision: *10x per day*\n' +
+        '💻 CodeMorph: *10x per day*\n\n' +
+        '*Premium access is valid for 1 week.*\n' +
+        'To renew, simply make another payment after it expires.\n\n' +
+        'Thank you for supporting Velix AI! 🚀';
+      const pointsMsg =
+        plan === 'free' ? freeUserPointsMessage : premiumUserPointsMessage;
       bot.sendMessage(message.chat.id, pointsMsg, { parse_mode: 'Markdown' });
       return;
     }
 
     if (message.text?.startsWith('/vg')) {
-      // bot.sendMessage(
-      //   message.chat.id,
-      //   `🖼️ *VelixGen is currently locked and will be released soon.*\n\nStay tuned for updates!`,
-      //   { parse_mode: 'Markdown' },
-      // );
-      // return;
-      if (!checkAndIncrementUsage(message.chat.id, 'textToImage')) {
-        return bot.sendMessage(
-          message.chat.id,
-          '⚠️ You have reached your daily limit for VelixGen. Try again tomorrow.',
-          { parse_mode: 'Markdown' },
-        );
-      }
+      //
       const prompt = message.text.slice(3).trim();
 
       if (!prompt) {
@@ -461,6 +800,15 @@ async function main() {
           { parse_mode: 'Markdown' },
         );
       } else {
+        const isAllowed = await checkAndLogUsage(message.from.id, 'vg');
+        if (!isAllowed) {
+          bot.sendMessage(
+            message.chat.id,
+            `⚠️ *You have reached the daily limit for this feature.*\n\nUpgrade to premium to get more usage.`,
+            { parse_mode: 'Markdown' },
+          );
+          return;
+        }
         let waittingMessageId: number = null;
         bot
           .sendMessage(
@@ -478,6 +826,7 @@ async function main() {
             caption: `🖼️ *VelixGen Result*`,
             parse_mode: 'Markdown',
           });
+
           if (waittingMessageId && image) {
             bot.deleteMessage(message.chat.id, waittingMessageId);
           }
@@ -497,10 +846,47 @@ async function main() {
       return;
     }
 
+    // Handle /pay command
+    if (message.text?.startsWith('/pay')) {
+      const parts = message.text.split(/\s+/);
+      const txInput = parts[1]; // akan undefined kalau cuma "/pay"
+
+      if (!txInput) {
+        return bot.sendMessage(
+          message.chat.id,
+          `💳 *Upgrade to Premium*
+
+To upgrade, please send your payment proof:
+
+📍 *Official Velix AI Address:*  
+\`0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb\`
+
+⚠️ *Only payments to this address are accepted.*  
+Minimum payment: *$12.5 USDT (ERC-20)*  
+Premium is valid for 7 days and gives you *10x/day usage per feature*.
+
+✅ Example:
+\`/pay https://etherscan.io/tx/<your-tx-hash>\``,
+          { parse_mode: 'Markdown' },
+        );
+      }
+
+      try {
+        await handlePayCommand(message, txInput);
+      } catch (error) {
+        console.error('Failed to handle /pay:', error);
+        await bot.sendMessage(
+          message.chat.id,
+          '❌ Something went wrong while processing your payment. Please try again later.',
+        );
+      }
+    }
+
     if (
       (message.caption && message.caption.startsWith('/vs')) ||
       (message.text && message.text.startsWith('/vs'))
     ) {
+      //
       handleOnImageToText(message);
       return;
     }
@@ -509,12 +895,7 @@ async function main() {
       (message.caption && message.caption.startsWith('/vcm')) ||
       (message.text && message.text.startsWith('/vcm'))
     ) {
-      // bot.sendMessage(
-      //   message.chat.id,
-      //   `💻 *CodeMorph is currently locked and will be released soon.*\n\nStay tuned!`,
-      //   { parse_mode: 'Markdown' },
-      // );
-      // return;
+      //
       handleOnGenerateCode(message);
       return;
     }
@@ -527,6 +908,7 @@ async function main() {
       message.text?.startsWith('/tutorial') ||
       message.text?.startsWith('/premium') ||
       message.text?.startsWith('/points') ||
+      message.text?.startsWith('/pay') ||
       message.text?.startsWith('/vg') ||
       message.text?.startsWith('/vs') ||
       message.text?.startsWith('/vcm') ||
@@ -534,7 +916,7 @@ async function main() {
       message.caption?.startsWith('/vs') ||
       message.caption?.startsWith('/vcm');
 
-    if (!isImageOnly || !isKnownCommand) {
+    if (!isImageOnly && !isKnownCommand) {
       bot.sendMessage(
         message.chat.id,
         `⚠️*Velix AI didn't recognize that input⚠️\n\nPlease try using one of the available features in the bot.*`,
