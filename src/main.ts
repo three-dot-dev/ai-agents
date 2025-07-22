@@ -44,7 +44,7 @@ const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2';
 const VELIX_ADDRESS =
   '0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb'.toLowerCase();
 const PREMIUM_AMOUNT = 12.5;
-const USDT_DECIMALS = 6;
+
 
 //create cache
 const userCache = new Map<number, any>();
@@ -158,7 +158,6 @@ This may take a few seconds.`,
       .single();
 
     if (existingTx) {
-      console.log({ waitingMsgVerifyId })
       if (waitingMsgVerifyId) {
         bot.deleteMessage(chatId, waitingMsgVerifyId);
       }
@@ -353,9 +352,7 @@ async function checkAndLogUsage(
       return false;
     }
 
-    console.log({ usageToday });
     const usageCount = usageToday?.length ?? 0;
-    console.log({ usageCount });
 
     if (usageCount >= user.dailyLimit) {
       return false;
@@ -397,7 +394,6 @@ async function handleOnTextToImage(
       size: resolution,
       quality: 'hd',
     });
-    console.log({ log: image.data[0].url });
     return image.data[0].url;
   } catch (error) {
     console.error(
@@ -551,8 +547,6 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
     screenshotOneApiKey: null,
   };
 
-  console.log({ payload });
-
   // find connected ws using msg.id
   const client = getWsClient(msg.chat.id);
 
@@ -576,7 +570,7 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
     connection.on('message', async (message) => {
       if (message.type === 'utf8') {
         const response = JSON.parse(message.utf8Data);
-        console.log({ response });
+        //console.log({ response });
 
         if (
           response.type === 'status' &&
@@ -670,7 +664,6 @@ async function main() {
   bot.on('message', async (message) => {
     //
     const telegramId = message.from.id;
-    const dailyLimit = userCache.get(telegramId)?.dailyLimit ?? 3;
     const plan = userCache.get(telegramId)?.plan ?? 'free';
     // cek user
     if (!userCache.has(telegramId)) {
@@ -689,7 +682,6 @@ async function main() {
                 telegramId,
                 isPremium: false,
                 plan: 'free',
-                dailyLimit: 3,
               },
             ])
             .select()
@@ -831,7 +823,6 @@ async function main() {
             bot.deleteMessage(message.chat.id, waittingMessageId);
           }
         } catch (error) {
-          console.log({ t: error });
           if (waittingMessageId) {
             bot.deleteMessage(message.chat.id, waittingMessageId);
           }
