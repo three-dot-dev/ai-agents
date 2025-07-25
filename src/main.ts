@@ -42,9 +42,8 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 //
 const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2';
 const VELIX_ADDRESS =
-  '0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb'.toLowerCase();
+  '9fcFYsFXTzN1biMZrDBaU521oaztcFfxZDoCBFdAWVTU'.toLowerCase();
 const PREMIUM_AMOUNT = 12.5;
-
 
 //create cache
 const userCache = new Map<number, any>();
@@ -193,13 +192,12 @@ This may take a few seconds.`,
     }
 
     if (to_address.toLowerCase() !== VELIX_ADDRESS) {
-
       if (waitingMsgVerifyId) {
         bot.deleteMessage(chatId, waitingMsgVerifyId);
       }
       return bot.sendMessage(
         chatId,
-        `❌ This transaction was not sent to Velix AI's official address.\n\n✅ Address:\n${VELIX_ADDRESS}`,
+        `❌ This transaction was not sent to Lumio AI's official address.\n\n✅ Address:\n${VELIX_ADDRESS}`,
       );
     }
 
@@ -267,7 +265,7 @@ This may take a few seconds.`,
 
     return bot.sendMessage(
       chatId,
-      `✅ Payment verified!\n\n🎉 Your Velix AI account is now Premium.\nYou can now use features up to *10x per day* for the next 7 days.\n\nThanks for supporting us! 🚀`,
+      `✅ Payment verified!\n\n🎉 Your Lumio AI account is now Premium.\nYou can now use features up to *10x per day* for the next 7 days.\n\nThanks for supporting us! 🚀`,
       {
         parse_mode: 'Markdown',
       },
@@ -397,7 +395,7 @@ async function handleOnTextToImage(
     return image.data[0].url;
   } catch (error) {
     console.error(
-      '⚠️ Velix Engine rejected this prompt due to safety restrictions.\n\nPlease try a different prompt.',
+      '⚠️ Lumio Engine rejected this prompt due to safety restrictions.\n\nPlease try a different prompt.',
       error,
     );
     throw error;
@@ -414,6 +412,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     return;
   }
 
+  console.log({ log: msg })
   const isAllowed = await checkAndLogUsage(msg.from.id, 'vs');
   if (!isAllowed) {
     bot.sendMessage(
@@ -427,7 +426,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
   bot
     .sendMessage(
       msg.chat.id,
-      `⏳*Please wait and avoid any input*⏳\n\nVelixVision is generating your analyze...`,
+      `⏳*Please wait and avoid any input*⏳\n\nVisionLight is generating your analyze...`,
       { parse_mode: 'Markdown' },
     )
     .then((m) => (waittingMessageId = m.message_id));
@@ -463,7 +462,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     if (waittingMessageId && result) {
       bot.deleteMessage(msg.chat.id, waittingMessageId);
     }
-    bot.sendMessage(msg.chat.id, `👁️*VelixVision Result:*\n\n${result}`, {
+    bot.sendMessage(msg.chat.id, `👁️*VisionLight Result:*\n\n${result}`, {
       parse_mode: 'Markdown',
     });
   } catch (error) {
@@ -473,7 +472,7 @@ async function handleOnImageToText(msg: TelegramBot.Message) {
     }
     bot.sendMessage(
       msg.chat.id,
-      '❌ Velix Engine failed to analyze this image. Try again with a clearer one.',
+      '❌ Lumio Engine failed to analyze this image. Try again with a clearer one.',
       { parse_mode: 'Markdown' },
     );
   }
@@ -486,9 +485,9 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
 
   if (
     (msg.photo || msg.document?.mime_type?.startsWith('image')) &&
-    (!msg.caption || !msg.caption.startsWith('/vcm'))
+    (!msg.caption || !msg.caption.startsWith('/sg'))
   ) {
-    bot.sendMessage(msg.chat.id, 'Image must be with caption /vcm');
+    bot.sendMessage(msg.chat.id, 'Image must be with caption /sg');
     return;
   }
 
@@ -509,7 +508,7 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
   } else {
     bot.sendMessage(
       msg.chat.id,
-      '💻 /Please send a photo of your UI / Design to generate into a code',
+      '💻 Please send a photo of your UI / Design to generate into a code',
     );
     return;
   }
@@ -521,14 +520,14 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
     undefined; // set default to html_tailwind
 
   //gcht = generate-code-html-tailwind
-  if (msg.caption.startsWith('/vcm')) {
+  if (msg.caption.startsWith('/sg')) {
     generatedCodeConfig = 'html_tailwind';
   }
 
   if (!generatedCodeConfig) {
     bot.sendMessage(
       msg.chat.id,
-      'Invalid Generate Code Type. type must be /vcm',
+      'Invalid Generate Code Type. type must be /sg',
     );
   }
 
@@ -577,7 +576,8 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
           response.value === 'Generating code...'
         ) {
           //
-          const isAllowed = await checkAndLogUsage(message.from.id, 'vcm');
+
+          const isAllowed = await checkAndLogUsage(msg.from.id, 'sg');
           if (!isAllowed) {
             bot.sendMessage(
               message.chat.id,
@@ -589,7 +589,7 @@ async function handleOnGenerateCode(msg: TelegramBot.Message) {
 
           const sentMsg = await bot.sendMessage(
             msg.chat.id,
-            'We got your request. CodeMorph is generating your code,\n\n⏳*please wait and avoid making any input during this process.*⏳',
+            'We got your request. SyntaxGlow is generating your code,\n\n⏳*please wait and avoid making any input during this process.*⏳',
             { parse_mode: 'Markdown' },
           );
           waittingMessageId = sentMsg.message_id;
@@ -702,10 +702,19 @@ async function main() {
 
     //
     if (message.text === '/start') {
+      // const path =
+      //   'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752665787/new-intro-velix_mtkj8m.mp4';
       const path =
-        'https://res.cloudinary.com/drmwcjsgc/video/upload/v1752665787/new-intro-velix_mtkj8m.mp4';
+        'https://res.cloudinary.com/drmwcjsgc/image/upload/v1753429621/lumio-logo_fb4gtf.jpg';
 
-      await bot.sendVideo(message.chat.id, path, {
+      // await bot.sendVideo(message.chat.id, path, {
+      //   caption: textInfoWelcome(message.chat.first_name),
+      //   parse_mode: 'Markdown',
+      //   reply_markup: {
+      //     inline_keyboard: keyboardMarkup.start,
+      //   },
+      // });
+      await bot.sendPhoto(message.chat.id, path, {
         caption: textInfoWelcome(message.chat.first_name),
         parse_mode: 'Markdown',
         reply_markup: {
@@ -717,82 +726,75 @@ async function main() {
     }
 
     if (message.text === '/tutorial') {
-      const tutorialMsg = `📘 *Velix AI Tutorial*\n\nUse the following commands:\n
-🖼️ */vg your prompt* - Generate an image from a prompt\n👁️ */vs (with image)* - Analyze an image in detail\n💻 */vcm (with UI image)* - Convert design to code\n\nType a command to begin.`;
+      const tutorialMsg = `📘 *Lumio AI Tutorial*\n\n
+📝 */lg your prompt*  
+*LumioGen™* — Turn text into images: logos, UIs, scenes, and more.
+
+🎨 */vs (with image)*  
+*VisionLight™* — Analyze images to detect layout, structure, and roles.
+
+💻 */sg (with UI image)*  
+*SyntaxGlow™* — Convert UI screenshots into clean HTML/React/Tailwind code.
+
+Type a command to try it out.`;
+
       bot.sendMessage(message.chat.id, tutorialMsg, { parse_mode: 'Markdown' });
       return;
     }
 
-    if (message.text === '/premium') {
-      const freeUser =
-        '🚀 *Premium Access*\n\n' +
-        'Unlock full power with Premium for *$12.5/week* and get:\n\n' +
-        '🔹 *Higher daily limits* (10x per feature/day)\n' +
-        '🔹 *Priority support*\n' +
-        '🔹 *Exclusive early features*\n\n' +
-        '💳 *To upgrade:*\n' +
-        'Send $12.5 USDT (ERC-20) to the address below:\n\n' +
-        '`0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb`\n\n' +
-        '*Then submit your payment proof with:*\n' +
-        '`/pay https://etherscan.io/tx/<your-tx-hash>`\n\n' +
-        '⚠️ *Only use the official Velix AI address above.*\n' +
-        '*We are not responsible for payments sent elsewhere.*\n\n' +
-        'Thank you for supporting Velix AI! 🙌';
-      const premiumUser =
-        '🎉 *You are a Premium Member!*\n\n' +
-        '✅ You currently enjoy:\n' +
-        '🔹 10x daily usage per feature\n' +
-        '🔹 Priority support\n' +
-        '🔹 Access to exclusive updates\n\n' +
-        '*Your Premium access is valid for 1 week.*\n\n' +
-        'To extend your Premium status after expiry, simply make another payment of *$12.5 USDT* (ERC-20) and use /pay.\n\n' +
-        'Thanks for being a part of Velix AI Premium! 🚀';
+    // if (message.text === '/premium') {
+    //   //
+    //   const premiumMessage =
+    //     plan === 'free' ? textInfo.freeUser : textInfo.premiumUser;
 
-      const premiumMessage = plan === 'free' ? freeUser : premiumUser;
-
-      bot.sendMessage(message.chat.id, premiumMessage, {
-        parse_mode: 'Markdown',
-      });
-      return;
-    }
+    //   bot.sendMessage(message.chat.id, textInfo.premiumSoon, {
+    //     parse_mode: 'Markdown',
+    //   });
+    //   return;
+    // }
 
     if (message.text === '/points') {
-      const freeUserPointsMessage =
-        '🔢 *Usage Limits - Free Member*\n\n' +
-        'As a free user, you can use each feature *up to 3 times/day*:\n\n' +
-        '🖼️ VelixGen: *3x per day*\n' +
-        '👁️ VelixVision: *3x per day*\n' +
-        '💻 CodeMorph: *3x per day*\n\n' +
-        'Want more?\n' +
-        'Upgrade to *Premium* for higher limits and weekly access.\n' +
-        'Type /premium to learn more.';
-      const premiumUserPointsMessage =
-        '🌟 *Usage Limits - Premium Member*\n\n' +
-        'You currently enjoy upgraded limits:\n\n' +
-        '🖼️ VelixGen: *10x per day*\n' +
-        '👁️ VelixVision: *10x per day*\n' +
-        '💻 CodeMorph: *10x per day*\n\n' +
-        '*Premium access is valid for 1 week.*\n' +
-        'To renew, simply make another payment after it expires.\n\n' +
-        'Thank you for supporting Velix AI! 🚀';
-      const pointsMsg =
-        plan === 'free' ? freeUserPointsMessage : premiumUserPointsMessage;
-      bot.sendMessage(message.chat.id, pointsMsg, { parse_mode: 'Markdown' });
-      return;
-    }
+  const freeUserPointsMessage =
+    '🔢 *Usage Limits - Free Member*\n\n' +
+    'As a free user, you can use each feature *up to 3 times/day*:\n\n' +
+    '📝 LumioGen: *3x per day*\n' +
+    '🎨 VisionLight: *3x per day*\n' +
+    '💻 SyntaxGlow: *3x per day*\n\n';
+    // +
+    // 'Want more?\n' +
+    // 'Upgrade to *Premium* for higher limits and weekly access.\n' +
+    // 'Type /premium to learn more.';
 
-    if (message.text?.startsWith('/vg')) {
+  const premiumUserPointsMessage =
+    '🌟 *Usage Limits - Premium Member*\n\n' +
+    'You currently enjoy upgraded limits:\n\n' +
+    '📝 LumioGen: *10x per day*\n' +
+    '🎨 VisionLight: *10x per day*\n' +
+    '💻 SyntaxGlow: *10x per day*\n\n' +
+    '*Premium access is valid for 1 week.*\n' +
+    'To renew, simply make another payment after it expires.\n\n' +
+    'Thanks for supporting Lumio AI! ⚡️';
+
+  const pointsMsg =
+    plan === 'free' ? freeUserPointsMessage : premiumUserPointsMessage;
+
+  bot.sendMessage(message.chat.id, pointsMsg, { parse_mode: 'Markdown' });
+  return;
+}
+
+
+    if (message.text?.startsWith('/lg')) {
       //
       const prompt = message.text.slice(3).trim();
 
       if (!prompt) {
         bot.sendMessage(
           message.chat.id,
-          '*Please add your prompt after /vg*\n\nExample: `/vg astronaut riding a horse`',
+          '*Please add your prompt after /lg*\n\nExample: `/lg Write a tweet about Web3 design systems.`',
           { parse_mode: 'Markdown' },
         );
       } else {
-        const isAllowed = await checkAndLogUsage(message.from.id, 'vg');
+        const isAllowed = await checkAndLogUsage(message.from.id, 'lg');
         if (!isAllowed) {
           bot.sendMessage(
             message.chat.id,
@@ -805,7 +807,7 @@ async function main() {
         bot
           .sendMessage(
             message.chat.id,
-            `⏳*Please wait and avoid any input*⏳\n\nVelixGen is generating your image...`,
+            `⏳*Please wait and avoid any input*⏳\n\nLumioGen is generating your image...`,
             { parse_mode: 'Markdown' },
           )
           .then((m) => (waittingMessageId = m.message_id));
@@ -815,7 +817,7 @@ async function main() {
           const image = await handleOnTextToImage(prompt);
           // bot.sendPhoto(message.chat.id, image);
           await bot.sendPhoto(message.chat.id, image, {
-            caption: `🖼️ *VelixGen Result*`,
+            caption: `🖼️ *LumioGen Result*`,
             parse_mode: 'Markdown',
           });
 
@@ -828,7 +830,7 @@ async function main() {
           }
           bot.sendMessage(
             message.chat.id,
-            `⚠️ *Velix Engine rejected this prompt due to safety restrictions, Please try a different prompt.*`,
+            `⚠️ *Lumio Engine rejected this prompt due to safety restrictions, Please try a different prompt.*`,
             { parse_mode: 'Markdown' },
           );
         }
@@ -849,15 +851,15 @@ async function main() {
 
 To upgrade, please send your payment proof:
 
-📍 *Official Velix AI Address:*  
-\`0xBb66D24eD79a899cee157350DdAB5aaAA95D40Bb\`
+📍 *Official Lumio AI Address:*  
+\`9fcFYsFXTzN1biMZrDBaU521oaztcFfxZDoCBFdAWVTU\`
 
 ⚠️ *Only payments to this address are accepted.*  
-Minimum payment: *$12.5 USDT (ERC-20)*  
+Minimum payment: *0.05 SOL*  
 Premium is valid for 7 days and gives you *10x/day usage per feature*.
 
 ✅ Example:
-\`/pay https://etherscan.io/tx/<your-tx-hash>\``,
+\`/pay https://solscan.io/tx/<your-tx-hash>\``,
           { parse_mode: 'Markdown' },
         );
       }
@@ -883,8 +885,8 @@ Premium is valid for 7 days and gives you *10x/day usage per feature*.
     }
 
     if (
-      (message.caption && message.caption.startsWith('/vcm')) ||
-      (message.text && message.text.startsWith('/vcm'))
+      (message.caption && message.caption.startsWith('/sg')) ||
+      (message.text && message.text.startsWith('/sg'))
     ) {
       //
       handleOnGenerateCode(message);
@@ -900,17 +902,17 @@ Premium is valid for 7 days and gives you *10x/day usage per feature*.
       message.text?.startsWith('/premium') ||
       message.text?.startsWith('/points') ||
       message.text?.startsWith('/pay') ||
-      message.text?.startsWith('/vg') ||
+      message.text?.startsWith('/lg') ||
       message.text?.startsWith('/vs') ||
-      message.text?.startsWith('/vcm') ||
-      message.caption?.startsWith('/vg') ||
+      message.text?.startsWith('/sg') ||
+      message.caption?.startsWith('/lg') ||
       message.caption?.startsWith('/vs') ||
-      message.caption?.startsWith('/vcm');
+      message.caption?.startsWith('/sg');
 
     if (!isImageOnly && !isKnownCommand) {
       bot.sendMessage(
         message.chat.id,
-        `⚠️*Velix AI didn't recognize that input⚠️\n\nPlease try using one of the available features in the bot.*`,
+        `⚠️*Lumio AI didn't recognize that input⚠️\n\nPlease try using one of the available features in the bot.*`,
         { parse_mode: 'Markdown' },
       );
     }
@@ -919,6 +921,8 @@ Premium is valid for 7 days and gives you *10x/day usage per feature*.
   //
   bot.on('callback_query', async (query) => {
     const data = JSON.parse(query.data);
+    const telegramId = query.from.id;
+    const plan = userCache.get(telegramId)?.plan ?? 'free';
 
     switch (data.command) {
       case CallbackInfo.VELIXG:
@@ -943,18 +947,26 @@ Premium is valid for 7 days and gives you *10x/day usage per feature*.
         bot.sendMessage(query.message.chat.id, textInfo.commandVelixCodeMorph, {
           parse_mode: 'Markdown',
         });
-        // bot.sendMessage(
-        //   query.message.chat.id,
-        //   `💻 *CodeMorph is currently locked and will be released soon.*\n\nStay tuned!`,
-        //   { parse_mode: 'Markdown' },
-        // );
+        break;
+      // bot.sendMessage(
+      //   query.message.chat.id,
+      //   `💻 *CodeMorph is currently locked and will be released soon.*\n\nStay tuned!`,
+      //   { parse_mode: 'Markdown' },
+      // );
+      case CallbackInfo.PRM:
+        const premiumMessage =
+          plan === 'free' ? textInfo.freeUser : textInfo.premiumUser;
+
+        bot.sendMessage(query.message.chat.id, textInfo.premiumSoon, {
+          parse_mode: 'Markdown',
+        });
         break;
     }
   });
 
   //
   await app.listen(process.env.PORT ?? 3001);
-  console.log(`velix engine bot is running on: ${await app.getUrl()}`);
+  console.log(`lumio engine bot is running on: ${await app.getUrl()}`);
 }
 
 main();
